@@ -1,0 +1,137 @@
+"""Build DB/processed/{main,people}: merged, class-remapped, resized, re-split 70/20/10 YOLO datasets.
+
+main   : 0 mine, 1 weapon, 2 litter      (booleans for the drone: mines / weapons / marine litter)
+people : 0 injured, 1 healthy            (count + triage input)
+
+Roboflow copies of one photo ("<orig>.rf.<hash>") are kept in the same split (no test leakage).
+Usage: python vision/prepare_db.py
+"""
+import glob, os, random, shutil
+from collections import Counter, defaultdict
+
+import cv2
+import yaml
+
+ROOT = os.path.join(os.path.dirname(__file__), "..", "DB")
+RAW, OUT = os.path.join(ROOT, "raw"), os.path.join(ROOT, "processed")
+MAX_SIDE = 640
+SPLITS = {"train": 0.7, "valid": 0.2, "test": 0.1}
+SEED = 42
+
+# (dataset folder, {source class name: target class id or None to drop}, max images or None)
+TARGETS = {
+    "main": {
+        "names": ["mine", "weapon", "litter"],
+        "sources": [
+            ("mines/roboflow_mines_v3", {"mine": 0}, None),
+            ("guns/firearm_detection_v1", {"gun": 1, "rifle": 1}, 2000),
+            ("guns/weapons_multi_v1", {"*": 1}, 2000),
+            ("guns/weapons_knife_v1", {"smoking": None, "*": 1}, 2000),
+            ("marine_litter/Data", {"*": 2}, None),
+        ],
+    },
+    "people": {
+        "names": ["injured", "healthy"],
+        "sources": [
+            ("injured/injured_people_v11", {"Injured": 0, "Uninjured": 1}, None),
+            ("injured/goknil_v9", {"Injured": 0, "Healthy": 1}, None),
+        ],
+    },
+}
+
+
+def group_key(path):
+    """Roboflow augmented copies share the part before '.rf.'."""
+    return os.path.basename(path).split(".rf.")[0]
+
+
+def label_path(img):
+    return os.path.join(os.path.dirname(os.path.dirname(img)), "labels",
+                        os.path.splitext(os.path.basename(img))[0] + ".txt")
+
+
+def remap(lines, names, cmap):
+    out = []
+    for line in lines:
+        p = line.split()
+        if len(p) < 5:
+            continue
+        if len(p) > 5:           # polygon "cls x1 y1 x2 y2 ..." -> bounding box
+            xs, ys = [float(v) for v in p[1::2]], [float(v) for v in p[2::2]]
+            x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+            p = [p[0], f"{(x0 + x1) / 2:.6f}", f"{(y0 + y1) / 2:.6f}", f"{x1 - x0:.6f}", f"{y1 - y0:.6f}"]
+        name = names[int(p[0])]
+        tgt = cmap.get(name, cmap.get("*"))
+        if tgt is not None:
+            out.append(f"{tgt} {' '.join(p[1:])}")
+    return out
+
+
+def build(target, cfg, rng):
+    out_dir = os.path.join(OUT, target)
+    shutil.rmtree(out_dir, ignore_errors=True)
+    groups = defaultdict(list)                       # (source, key) -> [(img, label_lines)]
+    for src, cmap, cap in cfg["sources"]:
+        d = os.path.join(RAW, src)
+        names = yaml.safe_load(open(os.path.join(d, "data.yaml")))["names"]
+        imgs = sorted(glob.glob(os.path.join(d, "*", "images", "*")))
+        keys = sorted({group_key(i) for i in imgs})
+        if cap:
+            keys = set(rng.sample(keys, min(cap, len(keys))))
+        for img in imgs:
+            k = group_key(img)
+            if k not in keys or not os.path.exists(label_path(img)):
+                continue
+            lines = remap(open(label_path(img)).read().splitlines(), names, cmap)
+            if lines:
+                groups[(src, k)].append((img, lines))
+
+    keys = sorted(groups)
+    rng.shuffle(keys)
+    n = len(keys)
+    cut1, cut2 = int(n * SPLITS["train"]), int(n * (SPLITS["train"] + SPLITS["valid"]))
+    split_of = {k: ("train" if i < cut1 else "valid" if i < cut2 else "test") for i, k in enumerate(keys)}
+
+    stats = defaultdict(Counter)
+    for k in keys:
+        split = split_of[k]
+        for j, (img, lines) in enumerate(groups[k]):
+            im = cv2.imread(img)
+            if im is None:
+                continue
+            h, w = im.shape[:2]
+            s = MAX_SIDE / max(h, w)
+            if s < 1:
+                im = cv2.resize(im, (round(w * s), round(h * s)), interpolation=cv2.INTER_AREA)
+            stem = f"{k[0].split('/')[0]}_{abs(hash(k)) % 10**8}_{j}"
+            for sub in ("images", "labels"):
+                os.makedirs(os.path.join(out_dir, split, sub), exist_ok=True)
+            cv2.imwrite(os.path.join(out_dir, split, "images", stem + ".jpg"), im, [cv2.IMWRITE_JPEG_QUALITY, 92])
+            open(os.path.join(out_dir, split, "labels", stem + ".txt"), "w").write("\n".join(lines) + "\n")
+            stats[split]["images"] += 1
+            for line in lines:
+                stats[split][cfg["names"][int(line.split()[0])]] += 1
+
+    yaml.safe_dump({"path": os.path.abspath(out_dir), "train": "train/images", "val": "valid/images",
+                    "test": "test/images", "names": dict(enumerate(cfg["names"]))},
+                   open(os.path.join(out_dir, "data.yaml"), "w"), sort_keys=False)
+    return stats
+
+
+def main():
+    rng = random.Random(SEED)
+    report = ["# DB/processed summary (generated by vision/prepare_db.py)", ""]
+    for target, cfg in TARGETS.items():
+        stats = build(target, cfg, rng)
+        report += [f"## {target}  classes: {cfg['names']}", "", "| split | images | boxes per class |", "|---|---|---|"]
+        for split in SPLITS:
+            s = stats[split]
+            report.append(f"| {split} | {s['images']} | " +
+                          ", ".join(f"{c} {s[c]}" for c in cfg["names"]) + " |")
+        report.append("")
+        print("\n".join(report[-6:]))
+    open(os.path.join(OUT, "SUMMARY.md"), "w").write("\n".join(report))
+
+
+if __name__ == "__main__":
+    main()

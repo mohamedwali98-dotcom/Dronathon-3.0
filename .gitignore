@@ -4,9 +4,10 @@ __pycache__/
 *.pyc
 
 # Datasets & training outputs (too big for git; see docs/TASKS.md T01 for sources)
-data/raw/
-data/processed/
+DB/*
+!DB/README.md
 runs/
+runs_*.log
 *.pt
 *.onnx
 

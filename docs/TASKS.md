@@ -69,17 +69,17 @@ T13 Logs & metrics <── T09 ; T14 Docker <── all ; T15 Docs/Demo <── 
 
 | # | Content | Source | Access | Status |
 |---|---|---|---|---|
-| D1 | Guns / weapons | https://www.kaggle.com/datasets/ugorjiir/gun-detection | Kaggle token (not used) | ✅ replaced by https://universe.roboflow.com/enrique-ortiz/firearm-detection v1 → `data/raw/guns/firearm_detection_v1/` — gun/rifle, 3153/367/94, public domain |
-| D2 | Mines | https://universe.roboflow.com/mine-dyzns/detection-miwbi | Roboflow API key, export "YOLOv8" | ✅ v3 → `data/raw/mines/roboflow_mines_v3/` — class `mine`, 1053/100/50 |
-| D3 | Marine litter, 7 classes, Tunisian coast, drone images (TUN-MarineLitter) | https://zenodo.org/records/21965497 (`Data.rar` 297 MB, `Augmented data.rar` 906 MB) | public | ✅ `data/raw/marine_litter/Data/` — YOLO, classes Cardboard/Fabrics/Glass/Metal/Other/Plastic/Wood, 2946/551/179 (≈80/15/5, re-split to 70/20/10) |
-| D4a | Injured persons (chosen by team) | https://universe.roboflow.com/pcos-data-annotation/injured-people-detection (v11) | Roboflow key | ✅ `data/raw/injured/injured_people_v11/` — Injured/Uninjured, 678/113 |
-| D4b | Injured persons (chosen by team) | https://universe.roboflow.com/kaan-zcivan/goknil_detection_model (v9) | Roboflow key | ✅ `data/raw/injured/goknil_v9/` — Healthy/Injured, 1171/65/20 |
+| D1 | Guns / weapons | https://www.kaggle.com/datasets/ugorjiir/gun-detection | Kaggle token (not used) | ✅ replaced by https://universe.roboflow.com/enrique-ortiz/firearm-detection v1 → `DB/raw/guns/firearm_detection_v1/` — gun/rifle, 3153/367/94, public domain |
+| D2 | Mines | https://universe.roboflow.com/mine-dyzns/detection-miwbi | Roboflow API key, export "YOLOv8" | ✅ v3 → `DB/raw/mines/roboflow_mines_v3/` — class `mine`, 1053/100/50 |
+| D3 | Marine litter, 7 classes, Tunisian coast, drone images (TUN-MarineLitter) | https://zenodo.org/records/21965497 (`Data.rar` 297 MB, `Augmented data.rar` 906 MB) | public | ✅ `DB/raw/marine_litter/Data/` — YOLO, classes Cardboard/Fabrics/Glass/Metal/Other/Plastic/Wood, 2946/551/179 (≈80/15/5, re-split to 70/20/10) |
+| D4a | Injured persons (chosen by team) | https://universe.roboflow.com/pcos-data-annotation/injured-people-detection (v11) | Roboflow key | ✅ `DB/raw/injured/injured_people_v11/` — Injured/Uninjured, 678/113 |
+| D4b | Injured persons (chosen by team) | https://universe.roboflow.com/kaan-zcivan/goknil_detection_model (v9) | Roboflow key | ✅ `DB/raw/injured/goknil_v9/` — Healthy/Injured, 1171/65/20 |
 | D4c | Injured persons, extra | **C2A** https://github.com/Ragib-Amin-Nihal/C2A (~10k UAV disaster images, 5 postures, YOLO+COCO) | public | ⬜ to download |
 | D5 | Injured persons, backup | **SARD** https://ieee-dataport.org/documents/search-and-rescue-image-dataset-person-detection-sard (1,981 imgs, class *Lying*) | IEEE DataPort login | ⬜ optional |
 
 - **Split rule:** 70 % train / 20 % val / 10 % test (cahier §3) — re-split if a dataset differs.
 - **Depends on:** T00.
-- **Done when:** `data/README.md` lists per dataset: classes, image count per split, format, licence.
+- **Done when:** `DB/README.md` lists per dataset: classes, image count per split, format, licence.
 
 ### T02 — 3D simulation scene (coastal zone) · **P0**
 - **Goal:** Webots world that reproduces the mission.

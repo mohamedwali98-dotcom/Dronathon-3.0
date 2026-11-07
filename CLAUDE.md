@@ -14,7 +14,7 @@ Original spec: `dronathon.pdf`. Task plan: `docs/TASKS.md` (T-ids). Progress: `T
 - Repo: github.com/mohamedwali98-dotcom/Dronathon-3.0 (public). Push after each completed F-requirement.
 - Author is ONLY `mohamedwali98-dotcom`. Never add Co-Authored-By Claude, "Generated with Claude Code"
   or any Claude/Anthropic credit. Enforced by `.claude/settings.json` (attribution off + PreToolUse hook)
-  and `.githooks/` (commit-msg strips, pre-push blocks). Never commit `data/raw/`, weights, PDFs, API keys.
+  and `.githooks/` (commit-msg strips, pre-push blocks). Never commit `DB/raw/`, weights, PDFs, API keys.
 
 ## Hard constraints from the spec (never break)
 - No weapons / dangerous payload. Triage by medical urgency. Hostile units = zones to avoid, never targets.
@@ -36,7 +36,7 @@ Original spec: `dronathon.pdf`. Task plan: `docs/TASKS.md` (T-ids). Progress: `T
 - `drone/` state, reflex controllers, agents (perception, planner), orchestrator
 - `vision/` training/eval scripts, weights
 - `comms/` JSON schema, ring buffer, ground-station mock
-- `data/raw/` downloaded datasets (not committed) · `tests/` · `docs/`
+- `DB/raw/` downloaded datasets (not committed) · `tests/` · `docs/`
 
 ## Datasets
 - D1 guns: kaggle.com/datasets/ugorjiir/gun-detection (needs Kaggle token)
