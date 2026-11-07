@@ -1,0 +1,18 @@
+# Python / env
+.venv/
+__pycache__/
+*.pyc
+
+# Datasets & training outputs (too big for git; see docs/TASKS.md T01 for sources)
+data/raw/
+data/processed/
+runs/
+*.pt
+*.onnx
+
+# PDFs (spec + personal files stay local; the digest is MESSIONS_POINTS.md)
+*.pdf
+
+# Local tool state
+.no-amnesia/
+.claude/settings.local.json

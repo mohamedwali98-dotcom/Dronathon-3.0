@@ -1,0 +1,3 @@
+#!/bin/sh
+# Strip any Claude/Anthropic attribution from commit messages (owner rule).
+sed -i -E '/[Cc]o-[Aa]uthored-[Bb]y:.*([Cc]laude|[Aa]nthropic)/d; /[Gg]enerated with .*[Cc]laude/d; /Claude-Session/d' "$1"
