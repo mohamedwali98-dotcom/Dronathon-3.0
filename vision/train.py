@@ -14,10 +14,14 @@ EPOCHS = {"main": 40, "people": 60}
 def main():
     name = sys.argv[1]
     data = os.path.join(HERE, "..", "DB", "augmented", name, "data.yaml")
-    model = YOLO("yolo11n.pt")                 # n-size: fast enough for the < 100 ms decision budget
-    model.train(data=data, epochs=EPOCHS[name], imgsz=640, batch=16, device=0, workers=4,
-                patience=15, project=os.path.join(HERE, "..", "runs"), name=name, exist_ok=True,
-                flipud=0.2, degrees=10)
+    if "resume" in sys.argv[2:]:               # python vision/train.py main resume  (fewer workers = less RAM)
+        model = YOLO(os.path.join(HERE, "..", "runs", name, "weights", "last.pt"))
+        model.train(resume=True, workers=2)
+    else:
+        model = YOLO("yolo11n.pt")             # n-size: fast enough for the < 100 ms decision budget
+        model.train(data=data, epochs=EPOCHS[name], imgsz=640, batch=16, device=0, workers=4,
+                    patience=15, project=os.path.join(HERE, "..", "runs"), name=name, exist_ok=True,
+                    flipud=0.2, degrees=10)
     os.makedirs(os.path.join(HERE, "weights"), exist_ok=True)
     shutil.copy(os.path.join(model.trainer.save_dir, "weights", "best.pt"), os.path.join(HERE, "weights", f"{name}.pt"))
     metrics = YOLO(os.path.join(HERE, "weights", f"{name}.pt")).val(data=data, split="test", device=0)
