@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SKYFORGE — Rapport de mission</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root { --bg:#0b1016; --panel:#121a23; --line:#223042; --text:#d6e2ee; --muted:#7f93a8;
+          --weapon:#9b5de5; --litter:#14b8a6; --mine:#f97316; --injured:#e31a1c; --base:#22c55e; --drone:#22d3ee; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui, sans-serif; height:100vh; display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:16px; padding:8px 16px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; letter-spacing:.04em; }
+  header .sp { flex:1; }
+  header label, header select { color:var(--muted); font-size:13px; }
+  select { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:3px 6px; }
+  #status { font-family:ui-monospace, monospace; font-size:12px; color:var(--muted); }
+  #status.bad { color:#fbbf24; }
+  main { flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:6px; padding:6px; min-height:0; }
+  @media (max-width:800px) { main { grid-template-columns:1fr; grid-template-rows:repeat(4, 60vh); overflow:auto; } }
+  .card { position:relative; border:1px solid var(--line); border-radius:6px; overflow:hidden; background:var(--panel); display:flex; flex-direction:column; min-height:0; }
+  .card h2 { margin:0; font-size:13px; padding:6px 10px; display:flex; gap:10px; align-items:center; border-bottom:1px solid var(--line); }
+  .card h2 .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .card h2 .stats { margin-left:auto; color:var(--muted); font-weight:400; font-family:ui-monospace, monospace; }
+  .map { flex:1; min-height:0;
+         background-color:#0e1620;
+         background-image:linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+         background-size:40px 40px; }
+  .legend { position:absolute; bottom:34px; left:8px; z-index:500; background:rgba(11,16,22,.85); padding:4px 8px; border-radius:4px; font-size:11px; color:var(--muted); }
+  .legend .bar { width:120px; height:8px; border-radius:2px; margin-top:3px;
+                 background:linear-gradient(90deg,#ffffb2,#fd8d3c,#e31a1c,#67000d); }
+  .rank { background:#fff; color:#111; border-radius:50%; width:20px; height:20px; text-align:center; font:700 11px/20px system-ui; border:2px solid #67000d; }
+  .dead { color:#cbd5e1; font:700 18px/18px system-ui; text-shadow:0 0 3px #000; }
+  .leaflet-container { background:transparent; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SKYFORGE · Rapport de mission</h1>
+  <span id="status">connexion…</span>
+  <span class="sp"></span>
+  <label>Fond <select id="basemap"><option value="sat">Satellite</option><option value="osm">Plan</option><option value="none">Grille</option></select></label>
+  <label><input type="checkbox" id="sync" checked> Cartes synchronisées</label>
+</header>
+<main>
+  <section class="card"><h2><span class="dot" style="background:var(--weapon)"></span>Armes<span class="stats" id="st-weapon">–</span></h2><div class="map" id="map-weapon"></div></section>
+  <section class="card"><h2><span class="dot" style="background:var(--injured)"></span>Blessés<span class="stats" id="st-injured">–</span></h2><div class="map" id="map-injured"></div>
+    <div class="legend">Priorité 1 → 10<div class="bar"></div>✕ décès possible (hors carte de chaleur)</div></section>
+  <section class="card"><h2><span class="dot" style="background:var(--litter)"></span>Déchets marins<span class="stats" id="st-litter">–</span></h2><div class="map" id="map-litter"></div></section>
+  <section class="card"><h2><span class="dot" style="background:var(--mine)"></span>Mines<span class="stats" id="st-mine">–</span></h2><div class="map" id="map-mine"></div></section>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script>
+const KINDS = ["weapon", "injured", "litter", "mine"];
+const COLOR = {weapon:"#9b5de5", litter:"#14b8a6", mine:"#f97316"};
+const LABEL = {weapon:"Arme", litter:"Déchet", mine:"Mine"};
+const TILES = {
+  sat: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", "Imagery © Esri"],
+  osm: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png", "© OpenStreetMap contributors"],
+};
+const maps = {}, layers = {}, bases = {};
+let syncing = false, fitted = false, tileErrors = 0;
+
+function setBase(kind) {
+  for (const k of KINDS) {
+    if (bases[k]) maps[k].removeLayer(bases[k]);
+    bases[k] = null;
+    if (kind === "none") continue;
+    bases[k] = L.tileLayer(TILES[kind][0], {maxZoom: 20, maxNativeZoom: 19, attribution: TILES[kind][1]})
+      .on("tileerror", () => { if (++tileErrors === 8) { document.getElementById("basemap").value = "none"; setBase("none");
+        status("tuiles indisponibles (hors ligne) — affichage sur grille", true); } })
+      .addTo(maps[k]);
+  }
+}
+
+for (const k of KINDS) {
+  maps[k] = L.map("map-" + k, {zoomControl: k === "weapon", attributionControl: true}).setView([36.9324, 10.2695], 17);
+  layers[k] = L.layerGroup().addTo(maps[k]);
+  L.control.scale({imperial: false}).addTo(maps[k]);
+  maps[k].on("move", () => {
+    if (syncing || !document.getElementById("sync").checked) return;
+    syncing = true;
+    for (const o of KINDS) if (o !== k) maps[o].setView(maps[k].getCenter(), maps[k].getZoom(), {animate: false});
+    syncing = false;
+  });
+}
+setBase("sat");
+document.getElementById("basemap").onchange = e => { tileErrors = 0; setBase(e.target.value); };
+
+function status(text, bad) { const s = document.getElementById("status"); s.textContent = text; s.classList.toggle("bad", !!bad); }
+
+function common(k, v) {
+  if (v.origin) L.circleMarker(v.origin, {radius: 7, color: "#22c55e", weight: 3, fillOpacity: .3})
+      .bindTooltip("Base").addTo(layers[k]);
+  if (v.drone) L.circleMarker(v.drone, {radius: 5, color: "#22d3ee", weight: 2, fillOpacity: .9})
+      .bindTooltip("Drone").addTo(layers[k]);
+}
+
+function draw(v) {
+  for (const k of KINDS) { layers[k].clearLayers(); common(k, v); }
+  for (const k of ["weapon", "litter", "mine"]) {
+    for (const p of v[k]) L.circleMarker([p.lat, p.lon], {radius: 6, color: COLOR[k], weight: 2, fillOpacity: .75})
+        .bindTooltip(`${LABEL[k]} #${p.id} · confiance ${Math.round(p.conf * 100)} %`).addTo(layers[k]);
+    const n = v[k].length, avg = n ? Math.round(100 * v[k].reduce((a, p) => a + p.conf, 0) / n) : 0;
+    document.getElementById("st-" + k).textContent = n ? `${n} · conf. moy. ${avg} %` : "0";
+  }
+  const alive = v.injured.filter(p => p.status !== "possibly_deceased").sort((a, b) => b.priority - a.priority);
+  const dead = v.injured.filter(p => p.status === "possibly_deceased");
+  if (alive.length) L.heatLayer(alive.map(p => [p.lat, p.lon, p.priority / 10]),
+      {radius: 30, blur: 20, max: 1, minOpacity: .35, gradient: {0.2: "#ffffb2", 0.5: "#fd8d3c", 0.8: "#e31a1c", 1: "#67000d"}})
+      .addTo(layers.injured);
+  alive.forEach((p, i) => L.marker([p.lat, p.lon], {icon: L.divIcon({className: "", html: `<div class="rank">${i + 1}</div>`, iconSize: [20, 20]})})
+      .bindTooltip(`Blessé #${p.id} · priorité ${p.priority}/10 · ${p.status === "alive" ? "conscient" : "inconscient"} · rang ${i + 1}`)
+      .addTo(layers.injured));
+  dead.forEach(p => L.marker([p.lat, p.lon], {icon: L.divIcon({className: "", html: '<div class="dead">✕</div>', iconSize: [18, 18]})})
+      .bindTooltip(`#${p.id} · décès possible — signalé aux secours`).addTo(layers.injured));
+  document.getElementById("st-injured").textContent = `${alive.length} vivant(s) · ${dead.length} décès possible`;
+
+  if (!fitted && v.origin) {
+    const pts = [v.origin, ...["weapon", "litter", "mine", "injured"].flatMap(k => v[k].map(p => [p.lat, p.lon]))];
+    maps.weapon.fitBounds(L.latLngBounds(pts).pad(0.15));
+    fitted = pts.length > 1;
+  }
+}
+
+async function poll() {
+  try {
+    const r = await fetch("/api/view", {cache: "no-store"});
+    const v = await r.json();
+    if (!v.origin) status("en attente du drone (aucun message hello)", true);
+    else { draw(v); if (!tileErrors || tileErrors < 8) status("liaison OK · " + new Date().toLocaleTimeString("fr-FR")); }
+  } catch (e) { status("station sol injoignable", true); }
+  setTimeout(poll, 1000);
+}
+poll();
+</script>
+</body>
+</html>
