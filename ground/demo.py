@@ -31,7 +31,7 @@ def main():
     s, st = run_mission(demo_world(), store_path=os.path.join(OUT, "drone.db"), link=True,
                         ground_path=os.path.join(OUT, "ground.db"))
     print(f"phase={s.phase}  drone store={st['store'].counts()}  max msg={max(st['channel'].sizes)} B")
-    serve(st["ground"])
+    serve(st["ground"], port=int(os.environ.get("SKYFORGE_PORT", 8000)))   # run_all.bat sets 8077 (8000 is often taken)
 
 
 if __name__ == "__main__":
