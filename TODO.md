@@ -52,6 +52,9 @@ packaged in Docker/ROS2 with docs + live demo.
 - [x] T00/T02/T04/T09 Webots R2025a (`D:/tmp/webots/Webots`): `sim/webots/` world generated from `sim/scenario.py`
       + Mavic controller `skyforge` (reflex PD/attitude + velocity loop vs wind, LangGraph decisions @10 Hz,
       oracle perception, moving obstacle, kit drop). Run: open `sim/webots/worlds/skyforge.wbt` (README there)
+- [x] T07 part: YOLO in the Webots loop (`vision/onboard.py` + `Eyes` in the controller): camera 0.5 s -> main+people
+      YOLO -> geolocate -> match; injured enter the mission only once seen. Full run: 4/5 injured seen, 3 kits, POSE,
+      vision p95 75 ms. Limits: people detected as `healthy` (trained on real photos), mines not matched (box covers disc)
 - [x] T14 Docker: `Dockerfile` + `docker-compose.yml` (decision stack + 2D mission + ground maps, verified)
 
 ## 🔄 In progress

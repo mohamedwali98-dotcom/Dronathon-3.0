@@ -40,6 +40,10 @@ MAX_TILT = 0.10          # rad (~6 deg) -> ~5 m/s with the world linear damping 
 TILT_SMOOTH = 0.015      # low-pass on the tilt command per 8 ms step
 WIND_N_PER_MS = 0.04     # wind force on the airframe (N per m/s)
 T_MAX = float(os.environ.get("SKYFORGE_TMAX", "900"))   # safety cap on simulated time (s)
+VISION_DT = 0.5          # s between YOLO frames
+MATCH_M = 6.0            # a detection confirms a scene object within this distance
+PERCEPTION = os.environ.get("SKYFORGE_PERCEPTION", "yolo")   # yolo: injured must be seen by YOLO | oracle
+BOX_RGB = {"injured": 0xFF2020, "healthy": 0x20FF20, "mine": 0xFF8000, "weapon": 0xB040FF, "litter": 0x00E0E0}
 
 
 def clamp(v, lo, hi):
@@ -57,7 +61,7 @@ class Pilot:
         for d in (self.imu, self.gps, self.gyro):
             d.enable(ts)
         dev("camera").enable(ts * 8)
-        dev("camera pitch").setPosition(1.5)                 # look straight down (survey)
+        dev("camera pitch").setPosition(1.57)                # look straight down (survey)
         self.motors = [dev(n) for n in ("front left propeller", "front right propeller",
                                         "rear left propeller", "rear right propeller")]
         for m in self.motors:
@@ -113,6 +117,82 @@ def p95(xs):
     return xs[int(0.95 * (len(xs) - 1))] if xs else 0.0
 
 
+class Eyes:
+    """PerceptionAgent in the sim: camera -> YOLO -> ground position -> confirm scene objects.
+    Mode yolo: an injured person enters the mission only once YOLO has seen it (oracle gives severity).
+    Danger zones and obstacles always come from the oracle (safety: never fly into an unseen mine)."""
+
+    def __init__(self, robot, world, perceive):
+        import numpy as np
+        from vision.onboard import OnboardVision
+        self.np, self.world, self.base_perceive = np, world, perceive
+        self.cam, self.disp = robot.getDevice("camera"), robot.getDevice("yolo")
+        self.w, self.h = self.cam.getWidth(), self.cam.getHeight()
+        self.hfov = math.degrees(self.cam.getFov())
+        if self.disp:
+            self.disp.attachCamera(self.cam)
+        self.v = OnboardVision()
+        self.confirmed, self.obj_seen = set(), set()
+        self.ms, self.counts, self.false_pos, self.saved = [], {}, 0, {}
+        os.makedirs(os.path.join(OUT, "frames"), exist_ok=True)
+        self.log = open(os.path.join(OUT, "detections.jsonl"), "w", encoding="utf-8")
+
+    def _match(self, d):
+        if d.cls in ("injured", "healthy"):
+            cands = [(math.dist(d.xy, c.pos), ("cas", c.id)) for c in self.world.casualties]
+        else:
+            cands = [(math.dist(d.xy, xy), ("obj", i)) for i, (cls, xy) in enumerate(self.world.objects) if cls == d.cls]
+        best = min(cands, default=(math.inf, None))
+        return best[1] if best[0] <= MATCH_M else None
+
+    def look(self, pos, yaw, t):
+        img = self.np.frombuffer(self.cam.getImage(), self.np.uint8).reshape(self.h, self.w, 4)[:, :, :3].copy()
+        dets = self.v.detect(img, pos, yaw - math.pi / 2, self.hfov)    # geolocate: yaw 0 = north
+        self.ms.append(self.v.last_ms)
+        if self.disp:
+            self.disp.setAlpha(0.0)
+            self.disp.fillRectangle(0, 0, self.w, self.h)
+            self.disp.setAlpha(1.0)
+        for d in dets:
+            self.counts[d.cls] = self.counts.get(d.cls, 0) + 1
+            m = self._match(d)
+            if m is None:
+                self.false_pos += 1
+            elif m[0] == "cas" and m[1] not in self.confirmed:
+                self.confirmed.add(m[1])
+                say(f"[SKYFORGE] t={t:6.1f}s  YOLO confirmed injured #{m[1]} ({d.cls} {d.conf:.2f}) "
+                    f"at ({d.xy[0]:.1f}, {d.xy[1]:.1f})")
+            elif m[0] == "obj":
+                self.obj_seen.add(m[1])
+            self.log.write(json.dumps({"t": round(t, 2), "cls": d.cls, "conf": round(d.conf, 2),
+                                       "xy": [round(d.xy[0], 1), round(d.xy[1], 1)], "match": m}) + "\n")
+            x1, y1, x2, y2 = map(int, d.box)
+            if self.disp:
+                self.disp.setColor(BOX_RGB.get(d.cls, 0xFFFFFF))
+                self.disp.drawRectangle(x1, y1, x2 - x1, y2 - y1)
+                self.disp.drawText(f"{d.cls} {d.conf:.2f}", x1, max(0, y1 - 10))
+        if dets and min(self.saved.get(d.cls, 0) for d in dets) < 3:      # keep a few example frames
+            import cv2
+            for d in dets:
+                x1, y1, x2, y2 = map(int, d.box)
+                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                cv2.putText(img, f"{d.cls} {d.conf:.2f}", (x1, max(12, y1 - 4)), 0, 0.5, (0, 0, 255), 1)
+                self.saved[d.cls] = self.saved.get(d.cls, 0) + 1
+            cv2.imwrite(os.path.join(OUT, "frames", f"t{t:06.1f}_{dets[0].cls}.jpg"), img)
+
+    def perceive(self, s):
+        zones, cas = self.base_perceive(s)
+        if PERCEPTION == "yolo":
+            cas = [c for c in cas if c.id in self.confirmed]
+        return zones, cas
+
+    def stats(self):
+        return {"perception": PERCEPTION, "frames": len(self.ms), "vision_p95_ms": round(p95(self.ms), 1),
+                "detections": self.counts, "false_positives": self.false_pos,
+                "injured_confirmed": f"{len(self.confirmed)}/{len(self.world.casualties)}",
+                "objects_confirmed": f"{len(self.obj_seen)}/{len(self.world.objects)}"}
+
+
 def main():
     robot = Supervisor()
     ts = int(robot.getBasicTimeStep())
@@ -125,9 +205,13 @@ def main():
 
     s = DroneState(pos=(world.base[0], world.base[1], 0.0), battery_wh=BATTERY_WH)
     s.weather.wind = world.wind
-    mission = Mission(s, world.bounds, world.base, oracle(world))
+    eyes = Eyes(robot, world, oracle(world)) if PERCEPTION == "yolo" else None
+    cam = robot.getDevice("camera")
+    swath = 0.85 * 2 * ALT * math.tan(cam.getFov() / 2)          # lane spacing = camera footprint, 15 % overlap
+    mission = Mission(s, world.bounds, world.base, eyes.perceive if eyes else oracle(world), swath=swath)
+    say(f"[SKYFORGE] perception={PERCEPTION}  lane spacing={swath:.1f} m")
     reflex_ms, decision_ms = [], []
-    next_decision, kits, hold, landed_at, next_status = 0.0, s.kits, None, None, 0.0
+    next_decision, kits, hold, landed_at, next_status, next_look = 0.0, s.kits, None, None, 0.0, 0.0
     min_obst = min_zone = math.inf
     say("[SKYFORGE] mission start, zero human input")
 
@@ -153,6 +237,11 @@ def main():
         # battery (same energy model as the planner)
         air = math.hypot(vel[0] - world.wind[0], vel[1] - world.wind[1])
         s.battery_wh -= (P_HOVER + K_DRAG * air ** 2) * dt / 3600
+
+        # perception: YOLO on the down-looking camera
+        if eyes and pilot.cruising and s.phase not in ("INIT", "POSE") and t >= next_look:
+            next_look = t + VISION_DT
+            eyes.look(pos, att[2], t)
 
         # decision layer
         if t >= next_decision and (s.phase == "INIT" or pilot.cruising):
@@ -206,6 +295,8 @@ def main():
                "casualties_served": served, "kits_left": s.kits,
                "min_obstacle_clearance_m": round(min_obst, 2), "min_danger_zone_clearance_m": round(min_zone, 2),
                "reflex_p95_ms": round(p95(reflex_ms), 3), "decision_p95_ms": round(p95(decision_ms), 2)}
+    if eyes:
+        summary.update(eyes.stats())
     out = OUT
     with open(os.path.join(out, "mission_logs.jsonl"), "w", encoding="utf-8") as f:
         for e in s.mission_logs:

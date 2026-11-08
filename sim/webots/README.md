@@ -22,7 +22,7 @@ Headless check (no window):
 | Colour | Object |
 |---|---|
 | Green disc | Home base |
-| Red / orange capsules | Injured (red = high priority) |
+| Lying people, red / yellow shirt | Injured (red = high priority) |
 | Black spheres + orange disc | Sea mines + exclusion zone |
 | Red disc + dark box | Hostile unit = zone to avoid (never a target) |
 | Grey dome | Radio shadow (link lost → autonomous mode) |
@@ -31,4 +31,14 @@ Headless check (no window):
 | Small purple / cyan items | Weapons / marine litter |
 | White box | Dropped medical kit |
 
-Perception is the **oracle** for now (the supervisor knows the true positions). The camera already looks straight down for the YOLO step.
+## Perception: YOLO in the loop (default)
+- Every 0.5 s the down-looking camera frame (640×480, 69° FOV) goes through **both YOLO models**:
+  `runs/main/weights/best.pt` (mine / weapon / litter) and `vision/weights/people.pt` (injured / healthy).
+- Each box centre is converted to a ground position (`vision/geolocate.py`) and matched to the scene (≤ 6 m).
+- **An injured person enters the mission only after YOLO has seen it.** The severity still comes from the
+  scenario: the thermal/depth casualty assessment is not simulated.
+- **Danger zones and obstacles always come from the scene**, for safety: the drone never relies on a detection to avoid a mine.
+- Sweep lanes are spaced to match the camera footprint (85 % of it), so the camera sees the whole zone.
+- The **"yolo" display** (robot overlay in the 3D view) shows the camera with boxes. Example frames go to
+  `runs/webots/frames/`, every detection to `runs/webots/detections.jsonl`, and the stats to `summary.json`.
+- Oracle-only mode: set the environment variable `SKYFORGE_PERCEPTION=oracle` before starting Webots.

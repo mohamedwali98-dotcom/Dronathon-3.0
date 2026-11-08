@@ -9,6 +9,7 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, ROOT)
 from sim.scenario import ALT, MOVER_ID, skyforge_world  # noqa: E402
 
+CAM_FOV = 1.2            # rad horizontal (~69 deg): 27 m swath at 20 m
 COLORS = {"mine": "1 0.45 0", "hostile": "0.9 0.1 0.1", "radio_shadow": "0.5 0.5 0.5"}
 
 
@@ -25,6 +26,7 @@ def build():
     bx, by = w.base
     out = ['#VRML_SIM R2025a utf8',
            'EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/dji/mavic/protos/Mavic2Pro.proto"',
+           'EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/humans/pedestrian/protos/Pedestrian.proto"',
            'WorldInfo { title "SKYFORGE coastal mission" basicTimeStep 8 '
            'defaultDamping Damping { linear 0.2 angular 0.5 } }',
            f'Viewpoint {{ orientation -0.25 0.25 0.93 1.64 position {bx} {by - 45} 40 near 0.2 '
@@ -65,10 +67,12 @@ def build():
             out.append(solid(f"litter {k}", x, y, 0.15, "Cylinder { height 0.3 radius 0.1 }", "0.1 0.8 0.8"))
     for c in w.casualties:
         x, y = c.pos
-        out.append(solid(f"injured {c.id}", x, y, 0.25, "Capsule { height 1.3 radius 0.25 }",
-                         "0.85 0.2 0.2" if c.priority >= 5 else "0.9 0.7 0.2", rot="0 1 0 1.5708"))
+        shirt = "0.8 0.1 0.1" if c.priority >= 5 else "0.9 0.7 0.2"
+        out.append(f'Pedestrian {{ translation {x} {y} 0.2 rotation 0 1 0 1.5708 name "injured {c.id}" '
+                   f'controller "<none>" shirtColor {shirt} }}')      # lying on the ground
     out.append(f'Mavic2Pro {{ translation {bx} {by} 0.1 controller "skyforge" supervisor TRUE '
-               'cameraSlot [ Camera { width 400 height 240 } ] }')
+               f'cameraSlot [ Camera {{ width 640 height 480 fieldOfView {CAM_FOV} }} ] '
+               'bodySlot [ Display { name "yolo" width 640 height 480 } ] }')
     return "\n".join(out) + "\n"
 
 
