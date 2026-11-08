@@ -2,9 +2,9 @@
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/dji/mavic/protos/Mavic2Pro.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/humans/pedestrian/protos/Pedestrian.proto"
 WorldInfo { title "SKYFORGE coastal mission" basicTimeStep 8 defaultDamping Damping { linear 0.2 angular 0.5 } }
-Viewpoint { orientation -0.25 0.25 0.93 1.64 position 5.0 -40.0 40 near 0.2 follow "Mavic 2 PRO" followSmoothness 0.2 }
+Viewpoint { orientation -0.1849 0.4463 0.8756 0.8837 position -3.0 -3.0 5.1 near 0.1 follow "Mavic 2 PRO" followType "Tracking Shot" followSmoothness 0.1 }
 Background { skyColor [ 0.55 0.72 0.95 ] }
-DirectionalLight { direction -0.4 0.3 -1 intensity 3 castShadows FALSE }
+DirectionalLight { direction -0.4 0.3 -1 intensity 1.6 castShadows FALSE }
 Solid { translation 100 70 -0.05 rotation 0 0 1 0 name "sand" children [ Shape { appearance PBRAppearance { baseColor 0.86 0.78 0.58 roughness 0.8 metalness 0 transparency 0.0 } geometry Box { size 260 200 0.1 } } ] boundingObject Box { size 260 200 0.1 } }
 Solid { translation 100 195 -0.04 rotation 0 0 1 0 name "sea" children [ Shape { appearance PBRAppearance { baseColor 0.1 0.35 0.65 roughness 0.8 metalness 0 transparency 0.0 } geometry Box { size 260 70 0.1 } } ] boundingObject Box { size 260 70 0.1 } }
 Solid { translation 5.0 5.0 0.01 rotation 0 0 1 0 name "home" children [ Shape { appearance PBRAppearance { baseColor 0.1 0.75 0.3 roughness 0.8 metalness 0 transparency 0.0 } geometry Cylinder { height 0.02 radius 2.5 } } ]  }
@@ -44,4 +44,4 @@ Pedestrian { translation 150.0 40.0 0.2 rotation 0 1 0 1.5708 name "injured 2" c
 Pedestrian { translation 170.0 170.0 0.2 rotation 0 1 0 1.5708 name "injured 3" controller "<none>" shirtColor 0.8 0.1 0.1 }
 Pedestrian { translation 100.0 60.0 0.2 rotation 0 1 0 1.5708 name "injured 4" controller "<none>" shirtColor 0.9 0.7 0.2 }
 Pedestrian { translation 85.0 175.0 0.2 rotation 0 1 0 1.5708 name "injured 5" controller "<none>" shirtColor 0.9 0.7 0.2 }
-Mavic2Pro { translation 5.0 5.0 0.1 controller "skyforge" supervisor TRUE cameraSlot [ Camera { width 640 height 480 fieldOfView 1.2 } ] bodySlot [ Display { name "yolo" width 640 height 480 } ] }
+Mavic2Pro { translation 5.0 5.0 0.1 controller "skyforge" supervisor TRUE cameraSlot [ Camera { width 640 height 480 fieldOfView 1.2 } ] bodySlot [ Display { name "yolo" width 640 height 480 } Pose { translation 0 0 0.25 children [ Shape { appearance PBRAppearance { baseColor 1 0.4 0 emissiveColor 1 0.4 0 roughness 1 metalness 0 } geometry Sphere { radius 0.15 } } ] } ] }

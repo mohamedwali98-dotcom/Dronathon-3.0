@@ -40,6 +40,7 @@ MAX_TILT = 0.10          # rad (~6 deg) -> ~5 m/s with the world linear damping 
 TILT_SMOOTH = 0.015      # low-pass on the tilt command per 8 ms step
 WIND_N_PER_MS = 0.04     # wind force on the airframe (N per m/s)
 T_MAX = float(os.environ.get("SKYFORGE_TMAX", "900"))   # safety cap on simulated time (s)
+SNAP = float(os.environ.get("SKYFORGE_SNAP", "0"))   # sim time (s) of a 3D-view screenshot, 0 = off
 VISION_DT = 0.5          # s between YOLO frames
 MATCH_M = 6.0            # a detection confirms a scene object within this distance
 PERCEPTION = os.environ.get("SKYFORGE_PERCEPTION", "yolo")   # yolo: injured must be seen by YOLO | oracle
@@ -282,6 +283,8 @@ def main():
             pilot.control(goal, alt, pos, vel, att, rates)
         reflex_ms.append((time.perf_counter() - t0) * 1000)
 
+        if SNAP and abs(t - SNAP) < dt / 2:                       # optional 3D-view screenshot for checks/slides
+            robot.exportImage(os.path.join(OUT, f"view_t{int(t)}.jpg"), 90)
         if t >= next_status:
             next_status = t + float(os.environ.get("SKYFORGE_STATUS_S", "10"))
             say(f"[SKYFORGE] t={t:6.1f}s {s.phase:<11} pos=({pos[0]:6.1f},{pos[1]:6.1f},{pos[2]:5.1f}) "

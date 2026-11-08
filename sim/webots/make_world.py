@@ -29,10 +29,11 @@ def build():
            'EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/humans/pedestrian/protos/Pedestrian.proto"',
            'WorldInfo { title "SKYFORGE coastal mission" basicTimeStep 8 '
            'defaultDamping Damping { linear 0.2 angular 0.5 } }',
-           f'Viewpoint {{ orientation -0.25 0.25 0.93 1.64 position {bx} {by - 45} 40 near 0.2 '
-           'follow "Mavic 2 PRO" followSmoothness 0.2 }',
+           # chase camera: 8 m behind-left, 5 m above the drone, looking at it; keeps that offset in flight
+           f'Viewpoint {{ orientation -0.1849 0.4463 0.8756 0.8837 position {bx - 8} {by - 8} 5.1 near 0.1 '
+           'follow "Mavic 2 PRO" followType "Tracking Shot" followSmoothness 0.1 }',
            'Background { skyColor [ 0.55 0.72 0.95 ] }',
-           'DirectionalLight { direction -0.4 0.3 -1 intensity 3 castShadows FALSE }',
+           'DirectionalLight { direction -0.4 0.3 -1 intensity 1.6 castShadows FALSE }',
            solid("sand", 100, 70, -0.05, "Box { size 260 200 0.1 }", "0.86 0.78 0.58", physics=True),
            solid("sea", 100, 195, -0.04, "Box { size 260 70 0.1 }", "0.1 0.35 0.65", physics=True),
            solid("home", bx, by, 0.01, "Cylinder { height 0.02 radius 2.5 }", "0.1 0.75 0.3")]
@@ -72,7 +73,10 @@ def build():
                    f'controller "<none>" shirtColor {shirt} }}')      # lying on the ground
     out.append(f'Mavic2Pro {{ translation {bx} {by} 0.1 controller "skyforge" supervisor TRUE '
                f'cameraSlot [ Camera {{ width 640 height 480 fieldOfView {CAM_FOV} }} ] '
-               'bodySlot [ Display { name "yolo" width 640 height 480 } ] }')
+               'bodySlot [ Display { name "yolo" width 640 height 480 } '
+               # orange beacon above the drone so the audience can spot it (visual only, no mass/collision)
+               'Pose { translation 0 0 0.25 children [ Shape { appearance PBRAppearance { baseColor 1 0.4 0 '
+               'emissiveColor 1 0.4 0 roughness 1 metalness 0 } geometry Sphere { radius 0.15 } } ] } ] }')
     return "\n".join(out) + "\n"
 
 
