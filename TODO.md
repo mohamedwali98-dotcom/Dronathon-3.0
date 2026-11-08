@@ -39,6 +39,8 @@ packaged in Docker/ROS2 with docs + live demo.
       · `comms/geo.py` + `config/mission.json` (home base = Gammarth beach) · `vision/geolocate.py`
       · `drone/reporter.py` + `ground/receiver.py` · `ground/server.py` + `ground/web/index.html` (4 synced maps)
       — demo: `.venv/Scripts/python -m ground.demo` → http://localhost:8000
+- [x] Obstacle avoidance: ≥ 1 m gap between drone body and any obstacle (static + moving, exact segment check,
+      moving obstacle tracked/predicted 1 s, replan or evade); danger zones keep 5 m. Tests: min gap 1.01 m in full mission
 - [x] T00 partial: `.venv` (Python 3.12, torch 2.6 cu124, ultralytics 8.4, CUDA OK on RTX 3050 6 GB)
 - [x] T01 D4 injured downloaded (`DB/raw/injured/`):
       `injured_people_v11` (Injured/Uninjured, 678/113) + `goknil_v9` (Healthy/Injured, 1171/65/20)

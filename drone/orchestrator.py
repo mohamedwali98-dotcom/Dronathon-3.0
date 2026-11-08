@@ -13,7 +13,7 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from drone.planner import DROP_S, Grid, astar, lawnmower, triage
+from drone.planner import DROP_S, Grid, astar, keep_out, lawnmower, triage
 from drone.rth import should_rth
 
 ARRIVE_M = 1.5
@@ -39,8 +39,24 @@ class Mission:
 
     def plan_to(self, xy):
         p = astar(self.grid, self.s.pos, xy)
+        if p is None and self.grid.blocked_at(self.s.pos):
+            return self._evade()
         self.path = p[1:] if p else []
         return p is not None
+
+    def _evade(self):
+        """A (moving) obstacle came inside our keep-out: step straight away from the nearest one."""
+        x, y = self.s.pos[:2]
+        z = min(self.grid.zones, key=lambda z: math.dist((x, y), z.center) - keep_out(z))
+        d = math.dist((x, y), z.center) or 1e-6
+        step = keep_out(z) - d + 2.0
+        self.path = [(x + (x - z.center[0]) / d * step, y + (y - z.center[1]) / d * step)]
+        self.s.log("evade", obstacle=z.id, gap=round(d - keep_out(z), 2))
+        return True
+
+    def path_clear(self):
+        pts = [self.s.pos[:2]] + self.path
+        return all(self.grid.free_segment(a, b) for a, b in zip(pts, pts[1:]))
 
     def follow(self):
         while self.path and math.dist(self.s.pos[:2], self.path[0]) < ARRIVE_M:
@@ -59,13 +75,21 @@ class Mission:
         if self.s.phase in ("INIT", "POSE"):
             return {}
         zones, casualties = self.perceive(self.s)
-        new_z = [z for z in zones if all(z.center != k.center for k in self.s.zones)]
-        if new_z:
+        tracked = {k.id: k for k in self.s.zones if k.id is not None}
+        moved = False
+        for z in zones:                                             # moving obstacles: update in place
+            if z.id is not None and z.id in tracked and tracked[z.id].center != z.center:
+                tracked[z.id].center, moved = z.center, True
+        new_z = [z for z in zones if (z.id is None and all(z.center != k.center for k in self.s.zones))
+                 or (z.id is not None and z.id not in tracked)]
+        if new_z or moved:
             self.s.zones += new_z
             self.grid = Grid(self.bounds, self.s.zones)
             for z in new_z:
                 self.s.log("zone", kind=z.kind, c=list(z.center), r=z.radius)
-            if self.path:                                           # replan around the new hazard
+            if self.path and (new_z or not self.path_clear()):     # replan around the new / moved hazard
+                if moved:
+                    self.s.log("replan_obstacle")
                 end = self.path[-1]
                 if not self.plan_to(end) and self.s.phase == "EXPLORER":
                     self.coverage = [w for w in self.coverage if w != end]

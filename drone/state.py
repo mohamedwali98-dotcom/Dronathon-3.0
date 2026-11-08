@@ -19,7 +19,9 @@ class Casualty:
 class Zone:
     center: tuple              # (x, y)
     radius: float
-    kind: str                  # mine | weapon | hostile | radio_shadow
+    kind: str                  # mine | weapon | hostile | radio_shadow | obstacle
+    speed: float = 0.0         # m/s, moving obstacles only
+    id: int | None = None      # set for tracked (moving) obstacles
 
 
 @dataclass

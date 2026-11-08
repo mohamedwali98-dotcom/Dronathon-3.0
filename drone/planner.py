@@ -10,7 +10,10 @@ P_HOVER = 100.0      # W, Mavic-class average
 K_DRAG = 0.5         # W per (m/s)^2 of airspeed
 DROP_S = 20.0        # hover time to deliver a kit
 RESERVE_WH = 0.10 * BATTERY_WH
-SAFETY_M = 5.0       # extra distance kept from every exclusion zone
+SAFETY_M = 5.0       # extra distance kept from danger zones (mine / weapon / hostile)
+CLEARANCE_M = 1.0    # minimum gap between the drone body and a physical obstacle (owner requirement)
+DRONE_RADIUS_M = 0.3 # Mavic 2 half-span incl. propellers
+T_PREDICT_S = 1.0    # moving obstacles are inflated by the distance they cover in this time
 W_URGENCY, W_PROX, D_MAX = 0.8, 0.2, 300.0
 
 
@@ -31,12 +34,27 @@ def hover_wh(seconds):
     return P_HOVER * seconds / 3600
 
 
+def keep_out(z):
+    """Distance from a zone centre that the drone centre must stay beyond."""
+    if z.kind == "obstacle":
+        return z.radius + DRONE_RADIUS_M + CLEARANCE_M + z.speed * T_PREDICT_S
+    return z.radius + SAFETY_M
+
+
+def _seg_dist(a, b, c):
+    ax, ay = a[0], a[1]; bx, by = b[0], b[1]
+    L2 = (bx - ax) ** 2 + (by - ay) ** 2
+    u = 0.0 if L2 == 0 else max(0.0, min(1.0, ((c[0] - ax) * (bx - ax) + (c[1] - ay) * (by - ay)) / L2))
+    return math.dist((ax + u * (bx - ax), ay + u * (by - ay)), c)
+
+
 def path_length(path):
     return sum(math.dist(a, b) for a, b in zip(path, path[1:]))
 
 
 class Grid:
-    """Occupancy grid; every zone except radio shadows is inflated by SAFETY_M and blocked."""
+    """Occupancy grid; every zone except radio shadows is blocked out to keep_out(z). Grid cells are padded by
+    half a cell diagonal so straight moves between free cell centres also respect keep_out exactly."""
 
     def __init__(self, bounds, zones, res=2.0):
         self.x0, self.y0, x1, y1 = bounds
@@ -48,7 +66,7 @@ class Grid:
         X, Y = np.meshgrid(xs, ys, indexing="ij")
         self.blocked = np.zeros((self.nx, self.ny), bool)          # precomputed once per zone update
         for z in self.zones:
-            self.blocked |= np.hypot(X - z.center[0], Y - z.center[1]) <= z.radius + SAFETY_M
+            self.blocked |= np.hypot(X - z.center[0], Y - z.center[1]) <= keep_out(z) + res * 0.7072
 
     def cell(self, p):
         return (min(self.nx - 1, max(0, round((p[0] - self.x0) / self.res))),
@@ -58,12 +76,11 @@ class Grid:
         return (self.x0 + c[0] * self.res, self.y0 + c[1] * self.res)
 
     def blocked_at(self, p):
-        return any(math.dist(p, z.center) <= z.radius + SAFETY_M for z in self.zones)
+        return any(math.dist(p[:2], z.center) <= keep_out(z) for z in self.zones)
 
     def free_segment(self, a, b):
-        n = max(1, int(math.dist(a, b) / (self.res / 2)))
-        return not any(self.blocked_at((a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n))
-                       for i in range(n + 1))
+        """Exact: the whole segment stays beyond keep_out of every zone."""
+        return all(_seg_dist(a, b, z.center) > keep_out(z) for z in self.zones)
 
 
 def astar(grid, start, goal):
@@ -71,6 +88,8 @@ def astar(grid, start, goal):
     if grid.blocked_at(goal) or grid.blocked_at(start[:2]):
         return None
     s, g = grid.cell(start), grid.cell(goal)
+    if s == g:
+        return [tuple(start[:2]), tuple(goal)] if grid.free_segment(start[:2], goal) else None
     openq, came, cost = [(0.0, s)], {s: None}, {s: 0.0}
     while openq:
         _, c = heapq.heappop(openq)
@@ -79,7 +98,15 @@ def astar(grid, start, goal):
         for dx in (-1, 0, 1):
             for dy in (-1, 0, 1):
                 n = (c[0] + dx, c[1] + dy)
-                if (dx or dy) and 0 <= n[0] < grid.nx and 0 <= n[1] < grid.ny and not grid.blocked[n]:
+                if not ((dx or dy) and 0 <= n[0] < grid.nx and 0 <= n[1] < grid.ny):
+                    continue
+                # padded cells next to the true start / goal are allowed when the real segment is clear
+                ok = not grid.blocked[n]
+                if c == s:
+                    ok = grid.free_segment(start[:2], grid.center(n)) and (ok or not grid.blocked_at(grid.center(n)))
+                if n == g:
+                    ok = grid.free_segment(start[:2] if c == s else grid.center(c), goal)
+                if ok:
                     nc = cost[c] + math.hypot(dx, dy)
                     if nc < cost.get(n, math.inf):
                         cost[n], came[n] = nc, c

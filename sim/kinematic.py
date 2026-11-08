@@ -14,8 +14,8 @@ from drone.orchestrator import Mission
 from drone.reporter import Reporter
 from drone.store import MissionStore
 from ground.receiver import GroundView
-from drone.planner import K_DRAG, P_HOVER, SPEED
-from drone.state import BATTERY_WH, Casualty, DroneState
+from drone.planner import DRONE_RADIUS_M, K_DRAG, P_HOVER, SPEED
+from drone.state import BATTERY_WH, Casualty, DroneState, Zone
 
 SENSOR_M = 25.0        # camera ground footprint radius at 20 m altitude
 
@@ -28,12 +28,14 @@ class World:
     casualties: list = field(default_factory=list)
     zones: list = field(default_factory=list)
     objects: list = field(default_factory=list)   # [(cls, (x, y))] weapon / litter / mine props
+    movers: dict = field(default_factory=dict)    # obstacle id -> (end_a, end_b): ping-pong at zone.speed
 
 
 def oracle(world):
     def perceive(s):
         p = s.pos[:2]
-        zones = [z for z in world.zones if z.kind != "radio_shadow" and math.dist(p, z.center) - z.radius <= SENSOR_M]
+        zones = [Zone(z.center, z.radius, z.kind, z.speed, z.id) for z in world.zones
+                 if z.kind != "radio_shadow" and math.dist(p, z.center) - z.radius <= SENSOR_M]
         cas = [Casualty(c.id, c.pos, c.severity, c.priority, c.status) for c in world.casualties
                if math.dist(p, c.pos) <= SENSOR_M]
         return zones, cas
@@ -46,7 +48,7 @@ def run_mission(world, battery_wh=BATTERY_WH, goal_updates=None, dt=0.1, t_max=3
     s.weather.wind = world.wind
     m = Mission(s, world.bounds, world.base, oracle(world))
     goal_updates = dict(goal_updates or {})
-    stats = {"cycle_ms": [], "min_zone_clearance": math.inf, "closest_to": {g: math.inf for g in goal_updates.values()}}
+    stats = {"cycle_ms": [], "min_zone_clearance": math.inf, "min_obstacle_clearance": math.inf, "closest_to": {g: math.inf for g in goal_updates.values()}}
     rep = None
     if store_path:
         ch = Channel()
@@ -87,6 +89,15 @@ def run_mission(world, battery_wh=BATTERY_WH, goal_updates=None, dt=0.1, t_max=3
         s.battery_wh -= power * dt / 3600
 
         for zn in world.zones:
+            if zn.id in world.movers:                              # move the obstacle along its patrol line
+                a, b = world.movers[zn.id]
+                L = math.dist(a, b)
+                u = (zn.speed * s.t / L) % 2.0
+                u = u if u <= 1 else 2 - u
+                zn.center = (a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u)
+            if zn.kind == "obstacle":
+                stats["min_obstacle_clearance"] = min(stats["min_obstacle_clearance"],
+                                                      math.dist(s.pos[:2], zn.center) - zn.radius - DRONE_RADIUS_M)
             if zn.kind != "radio_shadow":
                 stats["min_zone_clearance"] = min(stats["min_zone_clearance"], math.dist(s.pos[:2], zn.center) - zn.radius)
         for g in stats["closest_to"]:
