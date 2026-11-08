@@ -48,6 +48,7 @@ packaged in Docker/ROS2 with docs + live demo.
       Matek H743-SLIM, Pi 5 + Hailo, XIAO ESP32-S3 LoRa) — AUW 1.80 kg (no kit), TWR 2.89, ≈ 37 min mission;
       numbers from `docs/hardware_calc.py`
 - [x] `docs/dashboard-design-prompt.md`: Claude Design brief for the ground-station dashboard
+- [x] T15 part: `docs/slides-design-prompt.md`: Claude Design brief for the jury deck (slides not generated yet)
 
 - [x] T00/T02/T04/T09 Webots R2025a (`D:/tmp/webots/Webots`): `sim/webots/` world generated from `sim/scenario.py`
       + Mavic controller `skyforge` (reflex PD/attitude + velocity loop vs wind, LangGraph decisions @10 Hz,
@@ -59,7 +60,9 @@ packaged in Docker/ROS2 with docs + live demo.
 
 ## 🔄 In progress
 - [x] T06 `vision/weights/people.pt` trained (60 ep): TEST mAP50 0.782 (injured 0.80, healthy 0.76)
-- [ ] T05 `main.pt` training stopped at epoch 4/40 (PC ran low on RAM) — restart: `.venv/Scripts/python vision/train.py main`
+- [ ] T05 `main.pt` training resumed 8 Nov 10:07 from epoch 5/40 with 2 workers (`vision/train.py main resume`),
+      log `runs_main_resume.log`; on finish it copies `vision/weights/main.pt` and prints the test metrics
+- [ ] T15 slides + 2 demo rehearsals (technical docs done: `docs/TECHNICAL.md`, `README.md`)
 
 - [x] T01 D1 guns: Roboflow `firearm-detection` v1 (public domain) → `DB/raw/guns/firearm_detection_v1/`,
       classes gun/rifle, 3153/367/94 (replaces the Kaggle link, which needs a token)
@@ -71,17 +74,16 @@ packaged in Docker/ROS2 with docs + live demo.
 - (none)
 
 ## ⬜ Remaining (in order)
-### P0 — mission must work
-- [ ] T00 Setup: Webots + Python env + repo skeleton
-### P1 — scored features
-- [ ] T12 Medical supply delivery
-- [ ] T01 D4 download C2A + audit all datasets (`DB/README.md`)
-- [ ] T05 Main vision (jury module or own YOLO on D1+D2+D3)
-- [ ] T06 Secondary vision: C2A pretrain + sim-generated dataset
-- [ ] T07 PerceptionAgent: fusion, 2D→3D, filtering, exclusion zones
-- [ ] T13 Logs & metrics report
-- [ ] T14 ROS2 packaging (Docker done: `docker compose up` -> decision stack + maps on :8000)
 ### P0 — final
-- [ ] T15 Docs, slides, 2 demo rehearsals
+- [ ] T15 3 Webots runs (self-check in `MESSIONS_POINTS.md` §11), slides, 2 demo rehearsals
+### P1 — scored features (gaps detailed in `docs/TECHNICAL.md` §9)
+- [ ] T08 Kit allocation: a low-priority casualty found early takes a kit before higher-priority ones (F6)
+- [ ] T06 Secondary vision: sim-generated dataset + `hostile_unit` class (F5)
+- [ ] T07 PerceptionAgent in the 3D loop: mines not matched, 0/20 objects confirmed, zones still from the scene
+- [ ] T10 `goal_update` + link + ground station in the Webots controller
+- [ ] T04 Local sensor-based avoidance; variable wind + visibility
+- [ ] T13 One-command metrics report (coverage, collisions, delivery accuracy, total loop p95)
+- [ ] T14 ROS2 packaging (Docker done: `docker compose up` -> decision stack + maps on :8000)
 ### P2 — bonus
+- [ ] Dashboard: draw the mission zone to start (proposed, not built)
 - [ ] T16 Comms on Raspberry Pi (only if a Pi is available)
