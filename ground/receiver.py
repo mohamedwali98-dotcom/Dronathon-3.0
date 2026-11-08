@@ -1,0 +1,44 @@
+"""Ground-side view: decodes compact v2 messages into its own SQLite and exposes lat/lon for the maps."""
+import sqlite3
+
+from comms.compact import CLASS_ORDER, unpack_report
+from comms.geo import to_latlon
+
+
+class GroundView:
+    def __init__(self, path=":memory:"):
+        self.db = sqlite3.connect(path, check_same_thread=False)
+        self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS det(id INTEGER PRIMARY KEY, cls TEXT, x REAL, y REAL, conf REAL);
+            CREATE TABLE IF NOT EXISTS cas(id INTEGER PRIMARY KEY, x REAL, y REAL, priority INTEGER, status TEXT);
+            CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, a REAL, b REAL);""")
+
+    def ingest(self, m):
+        if m["type"] == "hello":
+            self.db.execute("INSERT OR REPLACE INTO meta VALUES('origin',?,?)", m["p"]["o"])
+        elif m["type"] == "tel":
+            self.db.execute("INSERT OR REPLACE INTO meta VALUES('drone',?,?)", m["p"]["d"][:2])
+        elif m["type"] == "rep":
+            r = unpack_report(m)
+            self.db.executemany("INSERT OR REPLACE INTO det VALUES(?,?,?,?,?)",
+                                [(d["id"], d["cls"], d["x"], d["y"], d["conf"]) for d in r["detections"]])
+            self.db.executemany("INSERT OR REPLACE INTO cas VALUES(?,?,?,?,?)",
+                                [(c["id"], c["x"], c["y"], c["priority"], c["status"]) for c in r["injured"]])
+        self.db.commit()
+
+    def view(self):
+        meta = {k: (a, b) for k, a, b in self.db.execute("SELECT k, a, b FROM meta")}
+        out = {"origin": None, "drone": None, **{c: [] for c in CLASS_ORDER}, "injured": []}
+        if "origin" not in meta:
+            return out
+        o = meta["origin"]
+        out["origin"] = list(o)
+        if "drone" in meta:
+            out["drone"] = list(to_latlon(*meta["drone"], o))
+        for i, cls, x, y, conf in self.db.execute("SELECT id, cls, x, y, conf FROM det ORDER BY id"):
+            lat, lon = to_latlon(x, y, o)
+            out[cls].append({"id": i, "lat": lat, "lon": lon, "conf": conf})
+        for i, x, y, pr, st in self.db.execute("SELECT id, x, y, priority, status FROM cas ORDER BY id"):
+            lat, lon = to_latlon(x, y, o)
+            out["injured"].append({"id": i, "lat": lat, "lon": lon, "priority": pr, "status": st})
+        return out

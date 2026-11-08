@@ -67,8 +67,9 @@ class DroneLink:
 class GroundStation:
     """Mock of the jury ground station (until the real one is available)."""
 
-    def __init__(self, channel):
+    def __init__(self, channel, on_message=None):
         self.ch, self.got, self.seq, self.pending, self._last_req = channel, set(), 0, {}, -1e9
+        self.on_message = on_message
 
     def send_goal(self, goal, t):
         self.seq += 1
@@ -80,6 +81,8 @@ class GroundStation:
         while self.ch.to_ground:
             m = decode(self.ch.to_ground.popleft())
             self.got.add(m["seq"])
+            if self.on_message:
+                self.on_message(m)
             if m["type"] == "ack":
                 self.pending.pop(m["p"]["seq"], None)
         for msg in self.pending.values():                       # retry unacknowledged goals

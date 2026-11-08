@@ -8,7 +8,12 @@ Oracle perception = every object within SENSOR_M of the drone is reported (stand
 import math, time
 from dataclasses import dataclass, field
 
+from comms.geo import load_origin
+from comms.link import Channel, DroneLink, GroundStation
 from drone.orchestrator import Mission
+from drone.reporter import Reporter
+from drone.store import MissionStore
+from ground.receiver import GroundView
 from drone.planner import K_DRAG, P_HOVER, SPEED
 from drone.state import BATTERY_WH, Casualty, DroneState
 
@@ -22,6 +27,7 @@ class World:
     wind: tuple = (0.0, 0.0)
     casualties: list = field(default_factory=list)
     zones: list = field(default_factory=list)
+    objects: list = field(default_factory=list)   # [(cls, (x, y))] weapon / litter / mine props
 
 
 def oracle(world):
@@ -34,12 +40,29 @@ def oracle(world):
     return perceive
 
 
-def run_mission(world, battery_wh=BATTERY_WH, goal_updates=None, dt=0.1, t_max=3000.0):
+def run_mission(world, battery_wh=BATTERY_WH, goal_updates=None, dt=0.1, t_max=3000.0,
+                store_path=None, link=False, ground_path=":memory:"):
     s = DroneState(pos=(world.base[0], world.base[1], 20.0), battery_wh=battery_wh)
     s.weather.wind = world.wind
     m = Mission(s, world.bounds, world.base, oracle(world))
     goal_updates = dict(goal_updates or {})
     stats = {"cycle_ms": [], "min_zone_clearance": math.inf, "closest_to": {g: math.inf for g in goal_updates.values()}}
+    rep = None
+    if store_path:
+        ch = Channel()
+        view = GroundView(ground_path)
+        ground, dlink = GroundStation(ch, on_message=view.ingest), DroneLink(ch)
+        rep = Reporter(MissionStore(store_path), dlink, load_origin())
+        stats.update(channel=ch, ground=view, store=rep.store)
+
+    def comms(t):
+        ch.up = s.link_ok if link else True
+        p = s.pos[:2]
+        rep.observe([(c, xy, 0.9) for c, xy in world.objects if math.dist(p, xy) <= SENSOR_M],
+                    [c for c in world.casualties if math.dist(p, c.pos) <= SENSOR_M], t)
+        rep.tick(s, t)
+        ground.step(t)
+        dlink.poll(t)
     while s.phase != "POSE" and s.t < t_max:
         s.t = round(s.t + dt, 3)
         for tg in [k for k in goal_updates if k <= s.t]:
@@ -68,4 +91,11 @@ def run_mission(world, battery_wh=BATTERY_WH, goal_updates=None, dt=0.1, t_max=3
                 stats["min_zone_clearance"] = min(stats["min_zone_clearance"], math.dist(s.pos[:2], zn.center) - zn.radius)
         for g in stats["closest_to"]:
             stats["closest_to"][g] = min(stats["closest_to"][g], math.dist(s.pos[:2], g))
+        if rep:
+            comms(s.t)
+    if rep:                                  # keep the radio alive after landing until the ground is in sync
+        t_end = s.t + 10.0
+        while s.t < t_end:
+            s.t = round(s.t + dt, 3)
+            comms(s.t)
     return s, stats
