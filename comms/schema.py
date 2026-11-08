@@ -1,9 +1,9 @@
 """JSON message contract drone <-> ground station: version, seq, ts, type, payload; always < 1 KB."""
 import json
 
-VERSION = 1
+VERSION = 2
 MAX_BYTES = 1024
-TYPES = {"telemetry", "detection", "goal_update", "ack", "log", "resync"}
+TYPES = {"telemetry", "detection", "goal_update", "ack", "log", "resync", "hello", "rep", "tel"}
 
 
 def make_msg(type_, payload, seq, ts):

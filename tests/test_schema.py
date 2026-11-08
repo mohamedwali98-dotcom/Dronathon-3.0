@@ -20,7 +20,7 @@ def test_every_message_type_is_versioned_and_small():
         raw = encode(m)
         assert len(raw) < MAX_BYTES
         back = decode(raw)
-        assert back["v"] == 1 and back["seq"] == seq and back["type"] == t
+        assert back["v"] == 2 and back["seq"] == seq and back["type"] == t
 
 
 def test_oversized_message_is_rejected():
