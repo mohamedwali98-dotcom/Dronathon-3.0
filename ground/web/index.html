@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SKYFORGE — Rapport de mission</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="vendor/leaflet.css">
 <style>
   :root { --bg:#0b1016; --panel:#121a23; --line:#223042; --text:#d6e2ee; --muted:#7f93a8;
           --weapon:#9b5de5; --litter:#14b8a6; --mine:#f97316; --injured:#e31a1c; --base:#22c55e; --drone:#22d3ee; }
@@ -50,8 +50,8 @@
   <section class="card"><h2><span class="dot" style="background:var(--litter)"></span>Déchets marins<span class="stats" id="st-litter">–</span></h2><div class="map" id="map-litter"></div></section>
   <section class="card"><h2><span class="dot" style="background:var(--mine)"></span>Mines<span class="stats" id="st-mine">–</span></h2><div class="map" id="map-mine"></div></section>
 </main>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/leaflet-heat.js"></script>
 <script>
 const KINDS = ["weapon", "injured", "litter", "mine"];
 const COLOR = {weapon:"#9b5de5", litter:"#14b8a6", mine:"#f97316"};

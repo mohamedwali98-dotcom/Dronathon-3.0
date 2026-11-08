@@ -34,13 +34,23 @@ packaged in Docker/ROS2 with docs + live demo.
 - [x] T09 `drone/orchestrator.py`: LangGraph sense → interrupts → phase node, full FSM, no LLM;
       `sim/kinematic.py` 2D mission sim w/ oracle perception: full mission 0 human input, 3/3 kits,
       0 zone entries, link loss handled, decision p95 ≈ 21 ms — 43 tests green
+- [x] Onboard store + compact protocol v2 + real-map UI (plan `docs/superpowers/plans/2026-11-08-onboard-store-protocol-maps.md`):
+      `drone/store.py` (SQLite, object merge 3 m) · `comms/compact.py` (numeric, flags weapon/litter/mine, < 1 KB packer)
+      · `comms/geo.py` + `config/mission.json` (home base = Gammarth beach) · `vision/geolocate.py`
+      · `drone/reporter.py` + `ground/receiver.py` · `ground/server.py` + `ground/web/index.html` (4 synced maps)
+      — demo: `.venv/Scripts/python -m ground.demo` → http://localhost:8000
 - [x] T00 partial: `.venv` (Python 3.12, torch 2.6 cu124, ultralytics 8.4, CUDA OK on RTX 3050 6 GB)
 - [x] T01 D4 injured downloaded (`DB/raw/injured/`):
       `injured_people_v11` (Injured/Uninjured, 678/113) + `goknil_v9` (Healthy/Injured, 1171/65/20)
+- [x] T16 prep: `HARDWARE_COMP.md` v2 real-drone parts list (550 mm carbon, 3508-700KV + 13", Li-ion 4S3P P45B,
+      Matek H743-SLIM, Pi 5 + Hailo, XIAO ESP32-S3 LoRa) — AUW 1.80 kg (no kit), TWR 2.89, ≈ 37 min mission;
+      numbers from `docs/hardware_calc.py`
+- [x] `docs/dashboard-design-prompt.md`: Claude Design brief for the ground-station dashboard
 
 ## 🔄 In progress
 - [ ] T00 install Webots R2025a (installer downloaded to `D:/tmp/webots/`, needs the owner to run it)
-- [ ] T05/T06 train `vision/weights/main.pt` + `people.pt` (`vision/train.py`), then measure latency
+- [x] T06 `vision/weights/people.pt` trained (60 ep): TEST mAP50 0.782 (injured 0.80, healthy 0.76)
+- [ ] T05 `main.pt` training stopped at epoch 4/40 (PC ran low on RAM) — restart: `.venv/Scripts/python vision/train.py main`
 
 - [x] T01 D1 guns: Roboflow `firearm-detection` v1 (public domain) → `DB/raw/guns/firearm_detection_v1/`,
       classes gun/rifle, 3153/367/94 (replaces the Kaggle link, which needs a token)

@@ -52,7 +52,7 @@ def run_mission(world, battery_wh=BATTERY_WH, goal_updates=None, dt=0.1, t_max=3
         ch = Channel()
         view = GroundView(ground_path)
         ground, dlink = GroundStation(ch, on_message=view.ingest), DroneLink(ch)
-        rep = Reporter(MissionStore(store_path), dlink, load_origin())
+        rep = Reporter(MissionStore(store_path), dlink, load_origin(), base_xy=world.base)
         stats.update(channel=ch, ground=view, store=rep.store)
 
     def comms(t):
@@ -62,7 +62,7 @@ def run_mission(world, battery_wh=BATTERY_WH, goal_updates=None, dt=0.1, t_max=3
                     [c for c in world.casualties if math.dist(p, c.pos) <= SENSOR_M], t)
         rep.tick(s, t)
         ground.step(t)
-        dlink.poll(t)
+        rep.on_messages(dlink.poll(t))
     while s.phase != "POSE" and s.t < t_max:
         s.t = round(s.t + dt, 3)
         for tg in [k for k in goal_updates if k <= s.t]:

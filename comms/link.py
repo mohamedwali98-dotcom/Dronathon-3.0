@@ -57,7 +57,8 @@ class DroneLink:
                 for raw in self.buffer.range(m["p"]["from"], m["p"]["to"]):
                     self.ch.send(self.ch.to_ground, raw)
                 continue
-            self.send("ack", {"seq": m["seq"]}, t)
+            if m["type"] != "ack":
+                self.send("ack", {"seq": m["seq"]}, t)
             if m["seq"] not in self._seen:
                 self._seen.add(m["seq"])
                 out.append(m)
@@ -67,8 +68,9 @@ class DroneLink:
 class GroundStation:
     """Mock of the jury ground station (until the real one is available)."""
 
-    def __init__(self, channel, on_message=None):
+    def __init__(self, channel, on_message=None, capacity=512):
         self.ch, self.got, self.seq, self.pending, self._last_req = channel, set(), 0, {}, -1e9
+        self.capacity = capacity            # drone ring size: older gaps can never be resent
         self.on_message = on_message
 
     def send_goal(self, goal, t):
@@ -85,6 +87,9 @@ class GroundStation:
                 self.on_message(m)
             if m["type"] == "ack":
                 self.pending.pop(m["p"]["seq"], None)
+            elif m["type"] == "rep":           # reports are acked so the drone can re-send evicted ones
+                self.seq += 1
+                self.ch.send(self.ch.to_drone, encode(make_msg("ack", {"seq": m["seq"]}, self.seq, t)))
         for msg in self.pending.values():                       # retry unacknowledged goals
             if t - msg["_sent"] >= 1.0:
                 msg["_sent"] = t
@@ -96,7 +101,8 @@ class GroundStation:
             self.ch.send(self.ch.to_drone, encode(make_msg("resync", {"from": missing[0], "to": missing[-1]}, self.seq, t)))
 
     def missing(self):
-        return [s for s in range(1, max(self.got, default=0)) if s not in self.got]
+        top = max(self.got, default=0)
+        return [s for s in range(max(1, top - self.capacity), top) if s not in self.got]
 
     def received_seqs(self):
         return sorted(self.got)

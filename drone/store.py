@@ -53,6 +53,11 @@ class MissionStore:
         self.db.executemany("UPDATE casualties SET sent=1 WHERE id=?", [(i,) for i in cas_ids])
         self.db.commit()
 
+    def mark_unsent(self, det_ids, cas_ids):
+        self.db.executemany("UPDATE detections SET sent=0 WHERE id=?", [(i,) for i in det_ids])
+        self.db.executemany("UPDATE casualties SET sent=0 WHERE id=?", [(i,) for i in cas_ids])
+        self.db.commit()
+
     def seen(self, det_id):
         return self.db.execute("SELECT n_seen FROM detections WHERE id=?", (det_id,)).fetchone()[0]
 

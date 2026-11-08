@@ -9,8 +9,8 @@ class GroundView:
     def __init__(self, path=":memory:"):
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.executescript("""
-            CREATE TABLE IF NOT EXISTS det(id INTEGER PRIMARY KEY, cls TEXT, x REAL, y REAL, conf REAL);
-            CREATE TABLE IF NOT EXISTS cas(id INTEGER PRIMARY KEY, x REAL, y REAL, priority INTEGER, status TEXT);
+            CREATE TABLE IF NOT EXISTS det(id INTEGER PRIMARY KEY, cls TEXT, x REAL, y REAL, conf REAL, seq INTEGER);
+            CREATE TABLE IF NOT EXISTS cas(id INTEGER PRIMARY KEY, x REAL, y REAL, priority INTEGER, status TEXT, seq INTEGER);
             CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, a REAL, b REAL);""")
 
     def ingest(self, m):
@@ -19,11 +19,14 @@ class GroundView:
         elif m["type"] == "tel":
             self.db.execute("INSERT OR REPLACE INTO meta VALUES('drone',?,?)", m["p"]["d"][:2])
         elif m["type"] == "rep":
-            r = unpack_report(m)
-            self.db.executemany("INSERT OR REPLACE INTO det VALUES(?,?,?,?,?)",
-                                [(d["id"], d["cls"], d["x"], d["y"], d["conf"]) for d in r["detections"]])
-            self.db.executemany("INSERT OR REPLACE INTO cas VALUES(?,?,?,?,?)",
-                                [(c["id"], c["x"], c["y"], c["priority"], c["status"]) for c in r["injured"]])
+            r, seq = unpack_report(m), m.get("seq", 0)      # a replayed older report never overwrites newer data
+            self.db.executemany("INSERT INTO det VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET cls=excluded.cls, "
+                                "x=excluded.x, y=excluded.y, conf=excluded.conf, seq=excluded.seq WHERE excluded.seq >= det.seq",
+                                [(d["id"], d["cls"], d["x"], d["y"], d["conf"], seq) for d in r["detections"]])
+            self.db.executemany("INSERT INTO cas VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET x=excluded.x, "
+                                "y=excluded.y, priority=excluded.priority, status=excluded.status, seq=excluded.seq "
+                                "WHERE excluded.seq >= cas.seq",
+                                [(c["id"], c["x"], c["y"], c["priority"], c["status"], seq) for c in r["injured"]])
         self.db.commit()
 
     def view(self):

@@ -32,7 +32,7 @@ def test_ground_gets_everything_after_radio_cut(tmp_path):
     for cls, truth in (("mine", MINES), ("weapon", WEAPONS), ("litter", LITTER)):
         for p in v[cls]:
             x, y = to_local(p["lat"], p["lon"], origin)
-            assert min(math.dist((x, y), q) for q in truth) < 0.5
+            assert min(math.dist((x + 5.0, y + 5.0), q) for q in truth) < 0.5   # radio frame = from home base (5, 5)
     dead = [p for p in v["injured"] if p["status"] == "possibly_deceased"]
     assert len(dead) == 1 and dead[0]["priority"] == 1
 
