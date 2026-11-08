@@ -62,7 +62,8 @@ packaged in Docker/ROS2 with docs + live demo.
 - [x] T06 `vision/weights/people.pt` trained (60 ep): TEST mAP50 0.782 (injured 0.80, healthy 0.76)
 - [ ] T05 `main.pt` training resumed 8 Nov 10:07 from epoch 5/40 with 2 workers (`vision/train.py main resume`),
       log `runs_main_resume.log`; on finish it copies `vision/weights/main.pt` and prints the test metrics
-- [ ] T15 slides + 2 demo rehearsals (technical docs done: `docs/TECHNICAL.md`, `README.md`)
+- [ ] T15 slides + 2 demo rehearsals (technical docs done: `docs/TECHNICAL.md`, `README.md`;
+      first deck `Dronathon_3_0_Slide_Deck.pptx` added: title, placeholders and example metrics still to fix)
 
 - [x] T01 D1 guns: Roboflow `firearm-detection` v1 (public domain) → `DB/raw/guns/firearm_detection_v1/`,
       classes gun/rifle, 3153/367/94 (replaces the Kaggle link, which needs a token)
