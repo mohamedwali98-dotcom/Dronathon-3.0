@@ -29,6 +29,6 @@ def make_server(view, port=8000, host="127.0.0.1"):
 
 
 def serve(view, port=8000):
-    srv = make_server(view, port)
+    srv = make_server(view, port, os.environ.get("GROUND_HOST", "127.0.0.1"))   # Docker sets 0.0.0.0
     print(f"Ground station: http://localhost:{srv.server_address[1]}")
     srv.serve_forever()

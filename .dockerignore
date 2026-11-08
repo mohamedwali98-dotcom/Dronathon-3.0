@@ -1,0 +1,11 @@
+.venv
+.git
+DB
+runs
+runs_*.log
+Hardware
+vision
+tests
+*.pt
+*.pdf
+**/__pycache__

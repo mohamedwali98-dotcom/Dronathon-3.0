@@ -49,8 +49,12 @@ packaged in Docker/ROS2 with docs + live demo.
       numbers from `docs/hardware_calc.py`
 - [x] `docs/dashboard-design-prompt.md`: Claude Design brief for the ground-station dashboard
 
+- [x] T00/T02/T04/T09 Webots R2025a (`D:/tmp/webots/Webots`): `sim/webots/` world generated from `sim/scenario.py`
+      + Mavic controller `skyforge` (reflex PD/attitude + velocity loop vs wind, LangGraph decisions @10 Hz,
+      oracle perception, moving obstacle, kit drop). Run: open `sim/webots/worlds/skyforge.wbt` (README there)
+- [x] T14 Docker: `Dockerfile` + `docker-compose.yml` (decision stack + 2D mission + ground maps, verified)
+
 ## 🔄 In progress
-- [ ] T00 install Webots R2025a (installer downloaded to `D:/tmp/webots/`, needs the owner to run it)
 - [x] T06 `vision/weights/people.pt` trained (60 ep): TEST mAP50 0.782 (injured 0.80, healthy 0.76)
 - [ ] T05 `main.pt` training stopped at epoch 4/40 (PC ran low on RAM) — restart: `.venv/Scripts/python vision/train.py main`
 
@@ -66,9 +70,6 @@ packaged in Docker/ROS2 with docs + live demo.
 ## ⬜ Remaining (in order)
 ### P0 — mission must work
 - [ ] T00 Setup: Webots + Python env + repo skeleton
-- [ ] T02 Webots coastal scene (obstacles, moving obstacle, props, wind, radio shadows)
-- [ ] T04 Reflex layer: PID, wind compensation, local avoidance (< 50 ms)
-- [ ] T09 plug orchestrator into Webots (after T02/T04)
 ### P1 — scored features
 - [ ] T12 Medical supply delivery
 - [ ] T01 D4 download C2A + audit all datasets (`DB/README.md`)
@@ -76,7 +77,7 @@ packaged in Docker/ROS2 with docs + live demo.
 - [ ] T06 Secondary vision: C2A pretrain + sim-generated dataset
 - [ ] T07 PerceptionAgent: fusion, 2D→3D, filtering, exclusion zones
 - [ ] T13 Logs & metrics report
-- [ ] T14 Docker/ROS2 packaging
+- [ ] T14 ROS2 packaging (Docker done: `docker compose up` -> decision stack + maps on :8000)
 ### P0 — final
 - [ ] T15 Docs, slides, 2 demo rehearsals
 ### P2 — bonus

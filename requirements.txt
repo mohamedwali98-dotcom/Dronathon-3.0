@@ -1,0 +1,5 @@
+# Decision stack + ground station (what the Docker image runs)
+langgraph==1.2.20
+numpy==2.5.4
+pytest
+# Vision training/inference (local .venv only, not in Docker): torch, ultralytics, opencv-python
